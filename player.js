@@ -31,7 +31,7 @@ function ttsSpeak(){
   if(ttsIdx>=CUES.length){ttsOn=false;setIcon(false);ttsIdx=0;show(-1);done();return}
   const u=new SpeechSynthesisUtterance(CUES[ttsIdx].say||CUES[ttsIdx].text);u.lang='ko-KR';u.rate=rate;pickVoice(u);
   show(ttsIdx,true);pg.style.width=((ttsIdx+1)/CUES.length*100)+'%';
-  u.onend=()=>{if(ttsOn){ttsIdx++;ttsSpeak()}};speechSynthesis.speak(u);
+  u.onend=()=>{if(ttsOn){ttsIdx++;ttsSpeak()}};if(typeof clearHint==='function')clearHint();speechSynthesis.speak(u);
 }
 play.onclick=()=>{
   if(useTTS){
@@ -48,5 +48,23 @@ $('big').onclick=e=>{const b=e.currentTarget,on=b.getAttribute('aria-pressed')!=
 try{if(localStorage.getItem('mp_big'))$('big').click()}catch(_){}
 const mv=$('mv');if(mv&&$('replay'))$('replay').onclick=()=>{mv.currentTime=0;mv.play()};
 spans.forEach(s=>s.addEventListener('click',()=>{const i=+s.dataset.i;if(useTTS){ttsIdx=i;speechSynthesis.cancel();ttsOn=true;setIcon(true);ttsSpeak()}else{au.currentTime=CUES[i].start;au.play()}}));
+// 페이지가 열리면 바로 해설 재생. 브라우저가 막으면 화면 아무 곳이나 한 번 누르면 시작
+const hint=document.createElement('button');hint.className='autohint';hint.type='button';
+hint.innerHTML='<b>▶</b> 화면을 한 번 누르면 해설이 시작됩니다';hint.hidden=true;document.body.appendChild(hint);
+function started(){return useTTS?ttsOn:(au&&!au.paused)}
+function clearHint(){hint.hidden=true;document.removeEventListener('pointerdown',firstTap,true)}
+function firstTap(e){
+  if(started()){clearHint();return}
+  if(e.target.closest('a,#play,#back,#speed,#big,.body .s,#replay'))return; // 버튼·링크는 원래 기능대로
+  clearHint(); play.click();
+}
+function needTap(){if(started())return;hint.hidden=false;document.addEventListener('pointerdown',firstTap,true)}
+if(au){au.addEventListener('play',clearHint)}
+function autoStart(){
+  if(useTTS){needTap();return}
+  const pr=au.play(); if(pr&&pr.catch)pr.catch(()=>{if(!useTTS)needTap()});
+}
+if(document.readyState==='complete')autoStart();else window.addEventListener('load',autoStart);
+window.addEventListener('pageshow',e=>{if(e.persisted&&!started())autoStart()});
 window.addEventListener('pagehide',()=>{try{speechSynthesis.cancel()}catch(_){}});
 })();
